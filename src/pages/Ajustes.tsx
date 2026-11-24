@@ -45,10 +45,10 @@ export default function Ajustes() {
               <tr key={a.clave}><td>{a.descripcion ?? a.clave}</td>
                 <td className="der"><NumInput valor={a.valor} deshabilitado={!esAdmin} onGuardar={(n) => n != null && run(supabase.from('ajustes').update({ valor: n }).eq('clave', a.clave))} /></td></tr>
             ))}
-            <tr><td>Multiplicador del vertical (vacío = general)</td>
+            <tr><td>Multiplicador del vertical (vacío = sin multiplicador por defecto)</td>
               <td className="der"><NumInput valor={x.vertical.multiplicador} deshabilitado={!esAdmin} onGuardar={(n) => run(supabase.from('verticales').update({ multiplicador: n }).eq('id', x.vertical.id))} /></td></tr>
           </tbody></table>
-          <p className="tenue peq">Prioridad del multiplicador: plato en la carta → cliente → plato → categoría → vertical → general.</p>
+          <p className="tenue peq">Prioridad del multiplicador: plato en la carta → cliente → plato → categoría → vertical. Si ninguno está definido, el plato no tiene PVP por multiplicador.</p>
         </div>
       )}
 

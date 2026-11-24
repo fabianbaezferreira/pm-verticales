@@ -23,7 +23,7 @@ Todo el cálculo de costes vive en la base de datos (funciones y vistas), así q
 El PVP es dinámico: se recalcula solo cuando cambian coste, tarifa, multiplicador, food cost objetivo o redondeo.
 Cada plato en cada carta elige método:
 
-- **Multiplicador**: coste × k. k se escribe por plato o por plato en la carta (como en Workspace); si no, hereda cliente → categoría → vertical → general (2,5 solo como valor de partida).
+- **Multiplicador**: coste × k. k se escribe por plato o por plato en la carta (como en Workspace); si no, hereda cliente → categoría → vertical. No hay multiplicador por defecto: sin ninguno definido, el plato queda sin PVP.
 - **Food cost objetivo**: coste ÷ FC. FC por plato en la carta → plato → categoría.
 - **Manual / comparables**: precio de carta con IVA fijado por el asesor.
 

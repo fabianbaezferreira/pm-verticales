@@ -12,7 +12,7 @@ import { cargarPlatos, type PlatoFila } from './Platos'
 type Carta = { id: string; nombre: string; version: number; estado: string; cliente_id: string; redondeo: string; clientes: Cliente }
 type Cliente = { id: string; nombre: string; zona: string | null; equipos: string[]; canales: string[]; restricciones: string[]; ticket_medio: number | null }
 type Linea = { id: string; plato_id: string; categoria_carta_id: string | null; pvp_sin_iva: number | null; metodo_pvp: string | null; justificacion: string | null; orden: number; multiplicador: number | null; food_cost_objetivo: number | null }
-type VLinea = { carta_plato_id: string; coste_total: number | null; componentes_sin_precio: number; multiplicador: number; multiplicador_origen: string; pvp_multiplicador: number | null; food_cost_objetivo: number | null; food_cost_origen: string | null; pvp_food_cost: number | null; multiplicador_efectivo: number | null; metodo_pvp: string; pvp_final_sin_iva: number | null; pvp_carta_con_iva: number | null; food_cost_real: number | null; margen_euros: number | null }
+type VLinea = { carta_plato_id: string; coste_total: number | null; componentes_sin_precio: number; multiplicador: number | null; multiplicador_origen: string; pvp_multiplicador: number | null; food_cost_objetivo: number | null; food_cost_origen: string | null; pvp_food_cost: number | null; multiplicador_efectivo: number | null; metodo_pvp: string; pvp_final_sin_iva: number | null; pvp_carta_con_iva: number | null; food_cost_real: number | null; margen_euros: number | null }
 type Comparable = { plato: string; establecimiento: string | null; pvp_con_iva: number; fecha: string }
 
 const METODOS = [['multiplicador', 'Multiplicador'], ['food_cost', 'Food cost objetivo'], ['comparables', 'Comparables de zona'], ['manual', 'Manual']] as const
@@ -207,8 +207,8 @@ export default function CartaDetalle() {
                       {veCostes && <>
                         <td className="der">{x?.componentes_sin_precio ? <Etiqueta tono="alerta">sin precio</Etiqueta> : eur(x?.coste_total)}</td>
                         <td className={`der ${metodo === 'multiplicador' ? '' : 'tenue'}`}>
-                          <NumInput ancho={60} valor={l.multiplicador} placeholder={num(x?.multiplicador)} deshabilitado={!edita} onGuardar={(n) => updLinea(l.id, { multiplicador: n })} />
-                          <div className="tenue peq">{l.multiplicador == null ? x?.multiplicador_origen : 'esta carta'}</div>
+                          <NumInput ancho={60} valor={l.multiplicador} placeholder={x?.multiplicador == null ? '—' : num(x?.multiplicador)} deshabilitado={!edita} onGuardar={(n) => updLinea(l.id, { multiplicador: n })} />
+                          <div className="tenue peq">{l.multiplicador != null ? 'esta carta' : x?.multiplicador == null ? 'sin definir' : x?.multiplicador_origen}</div>
                         </td>
                         <td className={`der ${metodo === 'food_cost' ? '' : 'tenue'}`}>
                           <NumInput ancho={60} valor={l.food_cost_objetivo == null ? null : Math.round(l.food_cost_objetivo * 1000) / 10}

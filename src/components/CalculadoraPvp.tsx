@@ -9,7 +9,7 @@ type Props = {
   multiplicador: number | null
   foodCost: number | null
   /** Valores efectivos tras la herencia, para mostrarlos como referencia. */
-  multiplicadorEfectivo: number
+  multiplicadorEfectivo: number | null
   origenMultiplicador: string
   foodCostEfectivo: number | null
   editable: boolean
@@ -49,9 +49,9 @@ export default function CalculadoraPvp(p: Props) {
       <div className="rejilla">
         <label className="campo">
           <span className="campo-et">Multiplicador del plato</span>
-          <NumInput ancho={120} valor={p.multiplicador} placeholder={num(p.multiplicadorEfectivo)} deshabilitado={!p.editable}
+          <NumInput ancho={120} valor={p.multiplicador} placeholder={p.multiplicadorEfectivo == null ? 'p. ej. 3' : num(p.multiplicadorEfectivo)} deshabilitado={!p.editable}
             onGuardar={(n) => p.onGuardar({ multiplicador: n })} />
-          <span className="campo-ayuda">{p.multiplicador == null ? `Vacío: hereda ${num(p.multiplicadorEfectivo)} (${p.origenMultiplicador})` : `Equivale a food cost ${pct(1 / p.multiplicador)}`}</span>
+          <span className="campo-ayuda">{p.multiplicador == null ? (p.multiplicadorEfectivo == null ? 'Sin definir: escribe uno, o usa food cost' : `Vacío: hereda ${num(p.multiplicadorEfectivo)} (${p.origenMultiplicador})`) : `Equivale a food cost ${pct(1 / p.multiplicador)}`}</span>
         </label>
         <label className="campo">
           <span className="campo-et">Food cost objetivo del plato (%)</span>
@@ -70,7 +70,7 @@ export default function CalculadoraPvp(p: Props) {
       <table className="tabla" style={{ marginTop: 12 }}>
         <thead><tr><th>Escenario</th><th className="der">Multiplicador</th><th className="der">Food cost</th><th className="der">PVP sin IVA</th><th className="der">Carta con IVA</th><th className="der">Margen</th></tr></thead>
         <tbody>
-          {fila('Por multiplicador', p.multiplicadorEfectivo, 1 / p.multiplicadorEfectivo, p.origenMultiplicador)}
+          {p.multiplicadorEfectivo != null && fila('Por multiplicador', p.multiplicadorEfectivo, 1 / p.multiplicadorEfectivo, p.origenMultiplicador)}
           {p.foodCostEfectivo != null && fila('Por food cost objetivo', 1 / p.foodCostEfectivo, p.foodCostEfectivo)}
           {kDeseado != null && fila('PVP simulado', kDeseado, fcDeseado)}
         </tbody>

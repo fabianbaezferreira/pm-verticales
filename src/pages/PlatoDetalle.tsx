@@ -14,7 +14,7 @@ type Plato = {
   multiplicador: number | null; food_cost_objetivo: number | null; foto_url: string | null; foto_orientativa: boolean
   textos: Record<string, string>; notas_internas: string | null; vertical_id: string
 }
-type Esc = { coste_materia: number | null; coste_mano_obra: number | null; coste_total: number | null; componentes_sin_precio: number; multiplicador: number; multiplicador_origen: string; pvp_multiplicador: number | null; food_cost_objetivo: number | null; pvp_food_cost: number | null; iva: number; alergenos: string[] }
+type Esc = { coste_materia: number | null; coste_mano_obra: number | null; coste_total: number | null; componentes_sin_precio: number; multiplicador: number | null; multiplicador_origen: string; pvp_multiplicador: number | null; food_cost_objetivo: number | null; pvp_food_cost: number | null; iva: number; alergenos: string[] }
 type MO = { id: string; tarea: string; minutos: number; coste_hora: number | null }
 
 const TEXTOS = [
@@ -98,8 +98,6 @@ export default function PlatoDetalle() {
           <div className="kpi"><div className="e">Materia prima</div><div className="v">{eur(e.coste_materia)}</div></div>
           <div className="kpi"><div className="e">Mano de obra</div><div className="v">{eur(e.coste_mano_obra)}</div></div>
           <div className="kpi"><div className="e">Coste ración (sin IVA)</div><div className="v">{e.componentes_sin_precio ? <Etiqueta tono="alerta">{e.componentes_sin_precio} sin precio</Etiqueta> : eur(e.coste_total)}</div></div>
-          <div className="kpi"><div className="e">PVP × {num(e.multiplicador)} <span title="Origen del multiplicador">({e.multiplicador_origen})</span></div><div className="v">{eur(e.pvp_multiplicador)}</div><div className="e">carta: {eur(e.pvp_multiplicador == null ? null : e.pvp_multiplicador * (1 + e.iva))} con IVA</div></div>
-          <div className="kpi"><div className="e">PVP por food cost {pct(e.food_cost_objetivo, 0)}</div><div className="v">{e.food_cost_objetivo ? eur(e.pvp_food_cost) : '—'}</div><div className="e">{e.food_cost_objetivo ? `carta: ${eur(e.pvp_food_cost == null ? null : e.pvp_food_cost * (1 + e.iva))} con IVA` : 'sin objetivo definido'}</div></div>
         </div>
       )}
 
