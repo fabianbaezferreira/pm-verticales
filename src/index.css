@@ -103,7 +103,7 @@ button:disabled { opacity: .5; cursor: default; }
 .buscador-lista { position: absolute; z-index: 20; left: 0; right: 0; top: 100%; margin: 2px 0 0; padding: 4px; list-style: none; background: var(--papel); border: 1px solid var(--linea); border-radius: var(--radio); max-height: 320px; overflow: auto; box-shadow: 0 6px 20px rgba(0,0,0,.08); }
 .buscador-lista li { padding: 6px 8px; border-radius: 4px; cursor: pointer; }
 .buscador-lista li:hover { background: var(--fondo); }
-.fila-anadir { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+.fila-anadir { display: flex; gap: 8px; margin-top: 10px; align-items: center; flex-wrap: wrap; }
 
 .kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; margin-bottom: 16px; }
 .kpi { background: var(--papel); border: 1px solid var(--linea); border-radius: 10px; padding: 12px 14px; }
@@ -137,3 +137,11 @@ button:disabled { opacity: .5; cursor: default; }
   .portada { min-height: 260mm; }
   @page { size: A4; margin: 16mm; }
 }
+
+/* Enciclopedia */
+.enc-rejilla { display: grid; grid-template-columns: 290px 1fr; gap: 16px; align-items: start; }
+.enc-areas { padding: 8px; display: flex; flex-direction: column; gap: 2px; position: sticky; top: 12px; }
+.enc-area { display: flex; justify-content: space-between; gap: 8px; width: 100%; text-align: left; border: none; background: none; padding: 6px 8px; border-radius: var(--radio); font-size: 13px; }
+.enc-area:hover { background: var(--fondo); }
+.enc-area.on { background: var(--tinta); color: #fff; }
+@media (max-width: 1000px) { .enc-rejilla { grid-template-columns: 1fr; } .enc-areas { position: static; } }

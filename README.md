@@ -18,6 +18,7 @@ Todo el cálculo de costes vive en la base de datos (funciones y vistas), así q
 | Clientes | Brief: zona, concepto, ticket, equipos, canales, restricciones. |
 | Cartas | Biblioteca filtrada por compatibilidad, PVP por 4 métodos con justificación, redondeo de carta, revisión de reglas, indicadores, versiones, foto fija de escandallos. |
 | Propuesta | Documento imprimible (PDF desde el navegador) para cliente o interno, con o sin escandallos. |
+| Enciclopedia | Burger Intelligence: 13 áreas de conocimiento con fichas relacionadas, fuentes y documentos trazables, incidencias y panel de cobertura. El área 12 se resuelve con fuentes y documentos; el área 13 y el escandallo se enlazan con el Catálogo PM y los platos (no se duplican). Contenido en bruto privado. |
 | Configuración | Categorías (food cost objetivo, multiplicador), reglas del vertical, plantillas de plato, estilos, ajustes generales. |
 
 El PVP es dinámico: se recalcula solo cuando cambian coste, tarifa, multiplicador, food cost objetivo o redondeo.
@@ -65,7 +66,7 @@ Un código repetido dentro del mismo archivo invalida todas sus filas.
 
 ## Base de datos
 
-Proyecto Supabase `pm-verticales` (`epjdvkuqrvqvqadewbjr`). Migraciones 01–08 creadas antes de este repositorio; 09 está en `supabase/migrations`.
+Proyecto Supabase `pm-verticales` (`epjdvkuqrvqvqadewbjr`). Migraciones 01–08 creadas antes de este repositorio; de la 09 en adelante están en `supabase/migrations`.
 Para traer el esquema completo al repositorio con la CLI de Supabase:
 
 ```powershell

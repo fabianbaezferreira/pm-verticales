@@ -16,6 +16,8 @@ import ClienteDetalle from './pages/ClienteDetalle'
 import CartaDetalle from './pages/CartaDetalle'
 import Propuesta from './pages/Propuesta'
 import Comparables from './pages/Comparables'
+import Enciclopedia from './pages/Enciclopedia'
+import EnciclopediaFicha from './pages/EnciclopediaFicha'
 import Ajustes from './pages/Ajustes'
 
 export default function App() {
@@ -62,6 +64,7 @@ function Marco() {
     ['/tarifas', 'Tarifas', veCostes],
     ['/extras', 'Ingredientes extra', true],
     ['/comparables', 'Comparables de zona', true],
+    ['/enciclopedia', 'Enciclopedia', true],
     ['/ajustes', 'Configuración', true],
   ]
   return (
@@ -97,6 +100,8 @@ function Marco() {
           <Route path="/clientes/:id" element={<ClienteDetalle />} />
           <Route path="/cartas/:id" element={<CartaDetalle />} />
           <Route path="/comparables" element={<Comparables />} />
+          <Route path="/enciclopedia" element={<Enciclopedia />} />
+          <Route path="/enciclopedia/fichas/:id" element={<EnciclopediaFicha />} />
           <Route path="/ajustes" element={<Ajustes />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
