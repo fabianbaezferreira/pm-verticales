@@ -79,6 +79,7 @@ function Marco() {
         <div className="usuario">
           <div>{nombre}</div>
           <div className="tenue peq">{rol}{esAdmin ? ' · configura verticales' : ''}</div>
+          <CambiarClave />
           <button className="btn-mini" onClick={salir}>Salir</button>
         </div>
       </aside>
@@ -114,10 +115,12 @@ function Login() {
   const [clave, setClave] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
+  const [enlace, setEnlace] = useState<string | null>(null)
   return (
     <div className="centrado">
       <form className="tarjeta login" onSubmit={async (e) => {
-        e.preventDefault(); setEnviando(true); setError(null)
+        e.preventDefault(); if (!clave) return setError('Escribe tu contraseña o pide un enlace por correo.')
+        setEnviando(true); setError(null)
         const { error } = await supabase.auth.signInWithPassword({ email, password: clave })
         if (error) setError(error.message === 'Invalid login credentials' ? 'Correo o contraseña incorrectos.' : error.message)
         setEnviando(false)
@@ -127,8 +130,37 @@ function Login() {
         <label className="campo"><span className="campo-et">Correo</span><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="username" /></label>
         <label className="campo"><span className="campo-et">Contraseña</span><input type="password" value={clave} onChange={(e) => setClave(e.target.value)} required autoComplete="current-password" /></label>
         {error && <Aviso tipo="error">{error}</Aviso>}
+        {enlace && <Aviso tipo="ok">{enlace}</Aviso>}
         <button className="btn-primario" disabled={enviando}>{enviando ? 'Entrando…' : 'Entrar'}</button>
+        <button type="button" disabled={enviando || !email} onClick={async () => {
+          setEnviando(true); setError(null); setEnlace(null)
+          const { error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo: window.location.origin } })
+          if (error) setError(error.message)
+          else setEnlace('Te he enviado un enlace de acceso. Ábrelo en este mismo navegador.')
+          setEnviando(false)
+        }}>Recibir enlace de acceso por correo</button>
+        <p className="tenue peq">Primera vez: escribe tu correo y pide el enlace. Dentro podrás crear tu contraseña.</p>
       </form>
     </div>
+  )
+}
+
+function CambiarClave() {
+  const [abierto, setAbierto] = useState(false)
+  const [c, setC] = useState('')
+  const [msg, setMsg] = useState<string | null>(null)
+  if (!abierto) return <button className="btn-mini" onClick={() => { setAbierto(true); setMsg(null) }}>Crear o cambiar contraseña</button>
+  return (
+    <form style={{ display: 'flex', flexDirection: 'column', gap: 6 }} onSubmit={async (e) => {
+      e.preventDefault()
+      if (c.length < 8) return setMsg('Mínimo 8 caracteres.')
+      const { error } = await supabase.auth.updateUser({ password: c })
+      setMsg(error ? `Error: ${error.message}` : 'Contraseña guardada.')
+      if (!error) { setC(''); setAbierto(false) }
+    }}>
+      <input type="password" value={c} onChange={(e) => setC(e.target.value)} placeholder="Nueva contraseña" autoComplete="new-password" />
+      <button className="btn-mini">Guardar</button>
+      {msg && <span className="peq">{msg}</span>}
+    </form>
   )
 }
