@@ -7,6 +7,8 @@ type Hoja = { sheet: string; data: Celda[][] }
 export type DatosCliente = {
   nombre?: string; zona?: string | null; concepto?: string | null; ticket_medio?: number | null
   fecha_apertura?: string | null; equipos?: string[]; canales?: string[]; restricciones?: string[]; notas?: string | null
+  personal?: string | null; horario?: string | null; equipos_otros?: string | null
+  contacto_nombre?: string | null; contacto_telefono?: string | null; contacto_email?: string | null
 }
 
 const norm = (s: unknown) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
@@ -68,13 +70,9 @@ export async function leerBrief(f: File): Promise<{ datos: DatosCliente; avisos:
   const ca = grupo('canal', CANALES); if (ca) d.canales = ca
   const re = grupo('restriccion', RESTRICCIONES); if (re) d.restricciones = re
 
-  const notas = [
-    t('personal') && `Personal de cocina: ${t('personal')}`,
-    t('horario') && `Horario: ${t('horario')}`,
-    t('equipos_otros') && `Otros equipos: ${t('equipos_otros')}`,
-    t('notas'),
-  ].filter(Boolean)
-  if (notas.length) d.notas = notas.join('\n')
+  for (const k of ['personal', 'horario', 'equipos_otros', 'contacto_nombre', 'contacto_telefono', 'contacto_email', 'notas'] as const) {
+    if (t(k)) d[k] = t(k)
+  }
   return { datos: d, avisos }
 }
 
@@ -88,6 +86,12 @@ const ALIAS: Record<keyof DatosCliente, string[]> = {
   canales: ['canales', 'canal'],
   restricciones: ['restricciones', 'restriccion'],
   notas: ['notas', 'observaciones', 'comentarios'],
+  personal: ['personal', 'personal de cocina'],
+  horario: ['horario'],
+  equipos_otros: ['otros equipos'],
+  contacto_nombre: ['contacto', 'persona de contacto'],
+  contacto_telefono: ['telefono', 'movil'],
+  contacto_email: ['email', 'correo', 'e-mail'],
 }
 
 export type FilaLista = { datos: DatosCliente; error?: string }
@@ -111,6 +115,8 @@ export async function leerLista(f: File): Promise<{ filas: FilaLista[]; columnas
       ticket_medio: parseNum(g(r, 'ticket_medio')), fecha_apertura: fechaISO(g(r, 'fecha_apertura')),
       equipos: lista(g(r, 'equipos'), EQUIPOS), canales: lista(g(r, 'canales'), CANALES),
       restricciones: lista(g(r, 'restricciones'), RESTRICCIONES), notas: texto(g(r, 'notas')),
+      personal: texto(g(r, 'personal')), horario: texto(g(r, 'horario')), equipos_otros: texto(g(r, 'equipos_otros')),
+      contacto_nombre: texto(g(r, 'contacto_nombre')), contacto_telefono: texto(g(r, 'contacto_telefono')), contacto_email: texto(g(r, 'contacto_email')),
     }
     filas.push({ datos: d, error: d.nombre ? undefined : 'Falta el nombre' })
   }

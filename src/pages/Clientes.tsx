@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase, ok } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
-import { cargarVertical, useLoad } from '../lib/hooks'
+import { useLoad } from '../lib/hooks'
 import { eur, fecha } from '../lib/format'
 import { Aviso, Cabecera, Cargando } from '../components/ui'
 import { ImportarLista } from '../components/ImportarClientes'
@@ -15,20 +15,11 @@ export default function Clientes() {
   const [importar, setImportar] = useState(false)
   const d = useLoad(async () => ok(await supabase.from('clientes').select('*, cartas(count)').order('creado_en', { ascending: false })) as unknown as Cli[], [])
 
-  async function crear() {
-    const nombre = prompt('Nombre del cliente o del proyecto')
-    if (!nombre) return
-    const v = await cargarVertical()
-    const { data, error } = await supabase.from('clientes').insert({ nombre, vertical_id: v.vertical.id, canales: ['sala'] }).select('id').single()
-    if (error) return alert(error.message)
-    nav(`/clientes/${data.id}`)
-  }
-
   return (
     <>
       <Cabecera titulo="Clientes y cartas" sub="Cada cliente lleva su brief: concepto, zona, ticket, equipos de cocina, canales y restricciones.">
         {edita && <button onClick={() => setImportar(!importar)}>Importar Excel</button>}
-        {edita && <button className="btn-primario" onClick={crear}>Nuevo cliente</button>}
+        {edita && <button className="btn-primario" onClick={() => nav('/clientes/nuevo')}>Alta de nuevo cliente</button>}
       </Cabecera>
       {importar && edita && <ImportarLista existentes={d.data ?? []} onHecho={d.reload} />}
       {d.loading ? <Cargando /> : d.error ? <Aviso tipo="error">{d.error}</Aviso> : (

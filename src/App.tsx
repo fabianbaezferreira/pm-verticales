@@ -13,6 +13,7 @@ import Platos from './pages/Platos'
 import PlatoDetalle from './pages/PlatoDetalle'
 import Clientes from './pages/Clientes'
 import ClienteDetalle from './pages/ClienteDetalle'
+import ClienteNuevo from './pages/ClienteNuevo'
 import CartaDetalle from './pages/CartaDetalle'
 import Propuesta from './pages/Propuesta'
 import Comparables from './pages/Comparables'
@@ -94,6 +95,7 @@ function Marco() {
           <Route path="/platos" element={<Platos />} />
           <Route path="/platos/:id" element={<PlatoDetalle />} />
           <Route path="/clientes" element={<Clientes />} />
+          <Route path="/clientes/nuevo" element={<ClienteNuevo />} />
           <Route path="/clientes/:id" element={<ClienteDetalle />} />
           <Route path="/cartas/:id" element={<CartaDetalle />} />
           <Route path="/comparables" element={<Comparables />} />

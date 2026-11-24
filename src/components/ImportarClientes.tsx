@@ -8,6 +8,8 @@ import { Aviso, Etiqueta } from './ui'
 const ETIQ: Record<string, string> = {
   nombre: 'Nombre', zona: 'Zona', concepto: 'Concepto', ticket_medio: 'Ticket medio', fecha_apertura: 'Apertura',
   equipos: 'Equipos', canales: 'Canales', restricciones: 'Restricciones', notas: 'Notas',
+  personal: 'Personal de cocina', horario: 'Horario', equipos_otros: 'Otros equipos',
+  contacto_nombre: 'Contacto', contacto_telefono: 'Teléfono', contacto_email: 'Correo',
 }
 const mostrar = (k: string, v: unknown) =>
   v == null || (Array.isArray(v) && v.length === 0) ? '—' : Array.isArray(v) ? v.join(', ') : k === 'ticket_medio' ? eur(v as number) : k === 'fecha_apertura' ? fecha(v as string) : String(v)

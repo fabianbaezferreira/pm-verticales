@@ -3,11 +3,13 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase, ok } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { useLoad } from '../lib/hooks'
-import { CANALES, EQUIPOS, fecha, RESTRICCIONES } from '../lib/format'
-import { Aviso, Cabecera, Campo, Cargando, Fichas, NumInput } from '../components/ui'
+import { fecha } from '../lib/format'
+import { Aviso, Cabecera, Cargando } from '../components/ui'
+import FormCliente, { CLIENTE_VACIO, type DatosFormCliente } from '../components/FormCliente'
 import { ImportarBrief } from '../components/ImportarClientes'
 
-type Cli = { id: string; nombre: string; zona: string | null; concepto: string | null; ticket_medio: number | null; equipos: string[]; canales: string[]; restricciones: string[]; fecha_apertura: string | null; notas: string | null; multiplicador: number | null }
+type Cli = DatosFormCliente & { id: string }
+const aForm = (x: Cli): DatosFormCliente => Object.fromEntries(Object.keys(CLIENTE_VACIO).map((k) => [k, (x as Record<string, unknown>)[k] ?? (CLIENTE_VACIO as Record<string, unknown>)[k]])) as DatosFormCliente
 type Carta = { id: string; nombre: string; version: number; estado: string; creado_en: string; carta_platos: { count: number }[] }
 
 export default function ClienteDetalle() {
@@ -57,23 +59,14 @@ export default function ClienteDetalle() {
 
       {edita && <ImportarBrief actual={x} onAplicar={async (d) => { await upd(d as Partial<Cli>); setVersion((n) => n + 1) }} />}
 
-      <div className="tarjeta" key={version}>
-        <h2>Brief</h2>
-        <div className="rejilla">
-          <Campo etiqueta="Nombre"><input defaultValue={x.nombre} disabled={!edita} onBlur={(e) => e.target.value && upd({ nombre: e.target.value })} /></Campo>
-          <Campo etiqueta="Zona" ayuda="Se usa para los comparables de precio"><input defaultValue={x.zona ?? ''} disabled={!edita} onBlur={(e) => upd({ zona: e.target.value || null })} /></Campo>
-          <Campo etiqueta="Ticket medio objetivo (€ con IVA)"><NumInput ancho={140} valor={x.ticket_medio} deshabilitado={!edita} onGuardar={(v) => upd({ ticket_medio: v })} /></Campo>
-          <Campo etiqueta="Fecha de apertura"><input type="date" defaultValue={x.fecha_apertura ?? ''} disabled={!edita} onBlur={(e) => upd({ fecha_apertura: e.target.value || null })} /></Campo>
-          <Campo etiqueta="Concepto" ancho="completo"><textarea defaultValue={x.concepto ?? ''} disabled={!edita} onBlur={(e) => upd({ concepto: e.target.value || null })} /></Campo>
-          <Campo etiqueta="Equipos de cocina disponibles" ancho="completo" ayuda="Solo se proponen platos compatibles con estos equipos">
-            <Fichas opciones={EQUIPOS} valor={x.equipos} deshabilitado={!edita} onChange={(v) => upd({ equipos: v })} />
-          </Campo>
-          <Campo etiqueta="Canales" ancho="completo"><Fichas opciones={CANALES} valor={x.canales} deshabilitado={!edita} onChange={(v) => upd({ canales: v })} /></Campo>
-          <Campo etiqueta="Restricciones" ancho="completo"><Fichas opciones={RESTRICCIONES} valor={x.restricciones} deshabilitado={!edita} onChange={(v) => upd({ restricciones: v })} /></Campo>
-          {veCostes && <Campo etiqueta="Multiplicador del cliente" ayuda="Vacío = el del plato, categoría o general"><NumInput ancho={120} valor={x.multiplicador} deshabilitado={!edita} onGuardar={(v) => upd({ multiplicador: v })} /></Campo>}
-          <Campo etiqueta="Notas (personal, horarios, etc.)" ancho="completo"><textarea defaultValue={x.notas ?? ''} disabled={!edita} onBlur={(e) => upd({ notas: e.target.value || null })} /></Campo>
-        </div>
-      </div>
+      <h2 style={{ marginTop: 8 }}>Ficha del cliente</h2>
+      <FormCliente key={version} inicial={aForm(x)} editable={edita} veCostes={veCostes} textoBoton="Guardar cambios"
+        onGuardar={async (d) => {
+          const { error } = await supabase.from('clientes').update(d).eq('id', id!)
+          if (error) return error.message
+          c.reload(); setVersion((n) => n + 1)
+          return null
+        }} />
     </>
   )
 }
