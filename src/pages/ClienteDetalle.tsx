@@ -4,9 +4,10 @@ import { supabase, ok } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { useLoad } from '../lib/hooks'
 import { CANALES, EQUIPOS, fecha, RESTRICCIONES } from '../lib/format'
+import { localizarDireccion, MODOS_COMPARABLES, type ModoComparables } from '../lib/comparables'
 import { Aviso, Cabecera, Campo, Cargando, Fichas, NumInput } from '../components/ui'
 
-type Cli = { id: string; nombre: string; zona: string | null; concepto: string | null; ticket_medio: number | null; equipos: string[]; canales: string[]; restricciones: string[]; fecha_apertura: string | null; notas: string | null; multiplicador: number | null }
+type Cli = { id: string; nombre: string; zona: string | null; concepto: string | null; ticket_medio: number | null; equipos: string[]; canales: string[]; restricciones: string[]; fecha_apertura: string | null; notas: string | null; multiplicador: number | null; codigo_postal: string | null; direccion: string | null; lat: number | null; lng: number | null; modo_comparables: ModoComparables; radio_km: number }
 type Carta = { id: string; nombre: string; version: number; estado: string; creado_en: string; carta_platos: { count: number }[] }
 
 export default function ClienteDetalle() {
@@ -22,6 +23,22 @@ export default function ClienteDetalle() {
     const { error } = await supabase.from('clientes').update(x).eq('id', id!)
     if (error) setError(error.message)
     c.reload()
+  }
+  const [localizando, setLocalizando] = useState(false)
+  const [infoLoc, setInfoLoc] = useState<string | null>(null)
+  async function localizar() {
+    const dir = c.data?.direccion?.trim()
+    if (!dir) return setError('Escribe primero la dirección del cliente.')
+    setError(null); setInfoLoc(null); setLocalizando(true)
+    try {
+      const l = await localizarDireccion(dir)
+      await upd({ lat: l.lat, lng: l.lng, ...(c.data?.codigo_postal ? {} : { codigo_postal: l.codigo_postal }) })
+      setInfoLoc(`Localizado: ${l.nombre}`)
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setLocalizando(false)
+    }
   }
   async function nuevaCarta() {
     const { data, error } = await supabase.from('cartas').insert({ cliente_id: id!, nombre: `Carta ${c.data!.nombre}` }).select('id').single()
@@ -51,6 +68,36 @@ export default function ClienteDetalle() {
             ))}</tbody>
           </table>
         )}
+      </div>
+
+      <div className="tarjeta">
+        <h2>Comparables de la zona</h2>
+        <div className="rejilla">
+          <Campo etiqueta="Cómo buscar comparables" ayuda="Cada cliente usa una sola forma; puedes cambiarla cuando quieras">
+            <select value={x.modo_comparables} disabled={!edita} onChange={(e) => upd({ modo_comparables: e.target.value as ModoComparables })}>
+              {MODOS_COMPARABLES.map((m) => <option key={m.v} value={m.v}>{m.l}</option>)}
+            </select>
+          </Campo>
+          {x.modo_comparables === 'zona' && <p className="tenue peq">Usa el texto de «Zona» del brief: solo cuentan los comparables con la misma zona escrita igual.</p>}
+          {x.modo_comparables === 'codigo_postal' && (
+            <Campo etiqueta="Código postal" ayuda="Solo cuentan los comparables con el mismo código postal">
+              <input defaultValue={x.codigo_postal ?? ''} disabled={!edita} inputMode="numeric" maxLength={5} onBlur={(e) => upd({ codigo_postal: e.target.value.trim() || null })} />
+            </Campo>
+          )}
+          {x.modo_comparables === 'radio' && (
+            <>
+              <Campo etiqueta="Dirección del cliente" ancho="completo" ayuda="Calle, número y ciudad. Se envía al servicio de mapas OpenStreetMap solo al pulsar «Localizar».">
+                <input defaultValue={x.direccion ?? ''} disabled={!edita} onBlur={(e) => upd({ direccion: e.target.value.trim() || null, lat: null, lng: null })} />
+              </Campo>
+              <Campo etiqueta="Radio (km)" ayuda="Distancia máxima en línea recta"><NumInput ancho={100} valor={x.radio_km} deshabilitado={!edita} onGuardar={(v) => v && v > 0 && v <= 100 && upd({ radio_km: v })} /></Campo>
+              <div>
+                {edita && <button onClick={localizar} disabled={localizando}>{localizando ? 'Localizando…' : 'Localizar'}</button>}
+                <p className="tenue peq">{x.lat != null && x.lng != null ? `Coordenadas: ${x.lat.toFixed(5)}, ${x.lng.toFixed(5)}` : 'Dirección sin localizar todavía.'}</p>
+                {infoLoc && <p className="tenue peq">{infoLoc}</p>}
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="tarjeta">

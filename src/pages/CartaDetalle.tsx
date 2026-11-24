@@ -6,14 +6,15 @@ import { useLoad, useVertical } from '../lib/hooks'
 import { cargarCatalogos } from '../lib/catalogo'
 import { calcularIndicadores } from '../lib/indicadores'
 import { eur, MODOS_REDONDEO, num, pct } from '../lib/format'
+import { filtrarComparables, type ComparableGeo, type ModoComparables } from '../lib/comparables'
 import { Aviso, Buscador, Cabecera, Cargando, EstadoReceta, Etiqueta, NumInput } from '../components/ui'
 import { cargarPlatos, type PlatoFila } from './Platos'
 
 type Carta = { id: string; nombre: string; version: number; estado: string; cliente_id: string; redondeo: string; clientes: Cliente }
-type Cliente = { id: string; nombre: string; zona: string | null; equipos: string[]; canales: string[]; restricciones: string[]; ticket_medio: number | null }
+type Cliente = { id: string; nombre: string; zona: string | null; codigo_postal: string | null; lat: number | null; lng: number | null; modo_comparables: ModoComparables; radio_km: number; equipos: string[]; canales: string[]; restricciones: string[]; ticket_medio: number | null }
 type Linea = { id: string; plato_id: string; categoria_carta_id: string | null; pvp_sin_iva: number | null; metodo_pvp: string | null; justificacion: string | null; orden: number; multiplicador: number | null; food_cost_objetivo: number | null }
 type VLinea = { carta_plato_id: string; coste_total: number | null; componentes_sin_precio: number; multiplicador: number | null; multiplicador_origen: string; pvp_multiplicador: number | null; food_cost_objetivo: number | null; food_cost_origen: string | null; pvp_food_cost: number | null; multiplicador_efectivo: number | null; metodo_pvp: string; pvp_final_sin_iva: number | null; pvp_carta_con_iva: number | null; food_cost_real: number | null; margen_euros: number | null }
-type Comparable = { plato: string; establecimiento: string | null; pvp_con_iva: number; fecha: string }
+type Comparable = ComparableGeo & { plato: string; establecimiento: string | null; pvp_con_iva: number; fecha: string }
 
 const METODOS = [['multiplicador', 'Multiplicador'], ['food_cost', 'Food cost objetivo'], ['comparables', 'Comparables de zona'], ['manual', 'Manual']] as const
 
@@ -48,10 +49,7 @@ export default function CartaDetalle() {
   }, [id, veCostes])
   const platos = useLoad(cargarPlatos, [])
   const revision = useLoad(async () => ok(await supabase.rpc('fn_revisar_carta', { p_carta: id! })) as { tipo: string; plato: string | null; aviso: string }[], [id])
-  const zona = carta.data?.clientes.zona ?? null
-  const comparables = useLoad(async () => zona
-    ? ok(await supabase.from('comparables').select('plato, establecimiento, pvp_con_iva, fecha').ilike('zona', zona).order('pvp_con_iva')) as Comparable[]
-    : [], [zona])
+  const comparables = useLoad(async () => ok(await supabase.from('comparables').select('plato, establecimiento, pvp_con_iva, fecha, zona, codigo_postal, lat, lng').order('pvp_con_iva')) as Comparable[], [])
   const ids = (lineas.data ?? []).map((l) => l.plato_id).sort().join(',')
   const ind = useLoad(async () => calcularIndicadores(ids ? ids.split(',') : [], await cargarCatalogos(false)), [ids])
   const iva = useLoad(async () => (ok(await supabase.from('ajustes').select('valor').eq('clave', 'iva_hosteleria').single()) as { valor: number }).valor, [])
@@ -130,8 +128,12 @@ export default function CartaDetalle() {
   const fcMedio = conCoste.length ? conCoste.reduce((s, l) => s + l.v!.coste_total!, 0) / conCoste.reduce((s, l) => s + l.v!.pvp_final_sin_iva!, 0) : null
   const equiposNec = Array.from(new Set(ls.flatMap((l) => pmap.get(l.plato_id)?.equipos ?? [])))
   const aptosDelivery = ls.filter((l) => pmap.get(l.plato_id)?.apto_delivery).length
-  const pvpsComp = (comparables.data ?? []).map((c) => c.pvp_con_iva)
-  const mediana = pvpsComp.length ? pvpsComp[Math.floor(pvpsComp.length / 2)] : null
+  const cli0 = carta.data?.clientes
+  const compRes = cli0 ? filtrarComparables(cli0, comparables.data ?? []) : null
+  const compFilas = compRes?.filas ?? []
+  const pvpsComp = compFilas.map((c) => c.pvp_con_iva).sort((a, b) => a - b)
+  const mediana = pvpsComp.length ? (pvpsComp.length % 2 ? pvpsComp[(pvpsComp.length - 1) / 2] : (pvpsComp[pvpsComp.length / 2 - 1] + pvpsComp[pvpsComp.length / 2]) / 2) : null
+  const criterioComp = !cli0 ? '' : cli0.modo_comparables === 'codigo_postal' ? `código postal ${cli0.codigo_postal ?? '—'}` : cli0.modo_comparables === 'radio' ? `radio ${num(cli0.radio_km)} km` : (cli0.zona ?? '')
   const avisosPorPlato = new Map<string, string[]>()
   ;(revision.data ?? []).forEach((r) => r.plato && avisosPorPlato.set(r.plato, [...(avisosPorPlato.get(r.plato) ?? []), r.aviso]))
   const avisosGenerales = (revision.data ?? []).filter((r) => !r.plato)
@@ -276,11 +278,12 @@ export default function CartaDetalle() {
           {ind.data && Object.entries(ind.data.basesPorRol).map(([rol, n]) => (
             <p key={rol}><b>{rol}</b> ({n.length}): <span className="tenue">{n.join(' · ')}</span></p>
           ))}
-          <h2 style={{ marginTop: 16 }}>Comparables de zona {cli.zona && <span className="tenue">· {cli.zona}</span>}</h2>
-          {!cli.zona ? <p className="tenue">Define la zona del cliente.</p> : pvpsComp.length === 0 ? <p className="tenue">No hay comparables para esta zona. <Link to="/comparables">Añadir</Link></p> : (
+          <h2 style={{ marginTop: 16 }}>Comparables de zona {criterioComp && <span className="tenue">· {criterioComp}</span>}</h2>
+          {compRes?.falta ? <p className="tenue">{compRes.falta}</p> : compFilas.length === 0 ? <p className="tenue">No hay comparables con este criterio.{compRes && compRes.sinDatos > 0 && ` ${compRes.sinDatos} sin datos suficientes para evaluarse.`} <Link to="/comparables">Añadir</Link></p> : (
             <>
               <p>Rango con IVA: <b>{eur(pvpsComp[0])}</b> – <b>{eur(pvpsComp[pvpsComp.length - 1])}</b> · mediana {eur(mediana)} · {pvpsComp.length} referencias</p>
-              <table className="tabla"><tbody>{comparables.data!.slice(0, 12).map((c, i) => <tr key={i}><td>{c.plato}</td><td className="peq">{c.establecimiento}</td><td className="der">{eur(c.pvp_con_iva)}</td></tr>)}</tbody></table>
+              {compRes && compRes.sinDatos > 0 && <p className="tenue peq">{compRes.sinDatos} comparables no se pueden evaluar con este criterio (les falta {cli0?.modo_comparables === 'radio' ? 'localizar la dirección' : cli0?.modo_comparables === 'codigo_postal' ? 'el código postal' : 'la zona'}).</p>}
+              <table className="tabla"><tbody>{[...compFilas].sort((a, b) => a.pvp_con_iva - b.pvp_con_iva).slice(0, 12).map((c, i) => <tr key={i}><td>{c.plato}</td><td className="peq">{c.establecimiento}</td>{c.distancia != null && <td className="der peq">{c.distancia < 1 ? `${Math.round(c.distancia * 1000)} m` : `${c.distancia.toFixed(1).replace('.', ',')} km`}</td>}<td className="der">{eur(c.pvp_con_iva)}</td></tr>)}</tbody></table>
             </>
           )}
         </div>
