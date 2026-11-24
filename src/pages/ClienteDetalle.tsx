@@ -5,6 +5,7 @@ import { useAuth } from '../lib/auth'
 import { useLoad } from '../lib/hooks'
 import { CANALES, EQUIPOS, fecha, RESTRICCIONES } from '../lib/format'
 import { Aviso, Cabecera, Campo, Cargando, Fichas, NumInput } from '../components/ui'
+import { ImportarBrief } from '../components/ImportarClientes'
 
 type Cli = { id: string; nombre: string; zona: string | null; concepto: string | null; ticket_medio: number | null; equipos: string[]; canales: string[]; restricciones: string[]; fecha_apertura: string | null; notas: string | null; multiplicador: number | null }
 type Carta = { id: string; nombre: string; version: number; estado: string; creado_en: string; carta_platos: { count: number }[] }
@@ -14,6 +15,7 @@ export default function ClienteDetalle() {
   const nav = useNavigate()
   const { edita, veCostes } = useAuth()
   const [error, setError] = useState<string | null>(null)
+  const [version, setVersion] = useState(0)
   const c = useLoad(async () => ok(await supabase.from('clientes').select('*').eq('id', id!).single()) as Cli, [id])
   const cartas = useLoad(async () => ok(await supabase.from('cartas').select('*, carta_platos(count)').eq('cliente_id', id!).order('creado_en', { ascending: false })) as unknown as Carta[], [id])
 
@@ -53,7 +55,9 @@ export default function ClienteDetalle() {
         )}
       </div>
 
-      <div className="tarjeta">
+      {edita && <ImportarBrief actual={x} onAplicar={async (d) => { await upd(d as Partial<Cli>); setVersion((n) => n + 1) }} />}
+
+      <div className="tarjeta" key={version}>
         <h2>Brief</h2>
         <div className="rejilla">
           <Campo etiqueta="Nombre"><input defaultValue={x.nombre} disabled={!edita} onBlur={(e) => e.target.value && upd({ nombre: e.target.value })} /></Campo>

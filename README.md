@@ -15,7 +15,7 @@ Todo el cálculo de costes vive en la base de datos (funciones y vistas), así q
 | Ingredientes extra | Productos fuera de catálogo con precio, fecha y fuente. |
 | Elaboraciones | Sub-recetas reutilizables (anidables). Coste por kg/l/ud y alérgenos heredados. |
 | Platos | Composición por roles de la plantilla del vertical, merma, mano de obra, escandallo, PVP por multiplicador y por food cost, textos, estado (teórica → validada). |
-| Clientes | Brief: zona, concepto, ticket, equipos, canales, restricciones. |
+| Clientes | Brief: zona, concepto, ticket, equipos, canales, restricciones. Plantilla Excel de brief para que la rellene el cliente (se importa en su ficha, con vista previa de cambios) y carga masiva de clientes desde Excel (crea o actualiza por nombre). Plantillas en `public/plantillas`. |
 | Cartas | Biblioteca filtrada por compatibilidad, PVP por 4 métodos con justificación, redondeo de carta, revisión de reglas, indicadores, versiones, foto fija de escandallos. |
 | Propuesta | Documento imprimible (PDF desde el navegador) para cliente o interno, con o sin escandallos. |
 | Configuración | Categorías (food cost objetivo, multiplicador), reglas del vertical, plantillas de plato, estilos, ajustes generales. |
