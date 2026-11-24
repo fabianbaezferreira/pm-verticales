@@ -19,14 +19,22 @@ export default function Propuesta() {
     const carta = ok(await supabase.from('cartas').select('id, nombre, version, clientes(nombre, zona, concepto)').eq('id', id!).single()) as unknown as
       { id: string; nombre: string; version: number; clientes: { nombre: string; zona: string | null; concepto: string | null } }
     const [lin, orden, platos, previas, tarifa] = await Promise.all([
-      supabase.from('v_carta_escandallo').select('*').eq('carta_id', id!),
-      supabase.from('carta_platos').select('id, orden, justificacion').eq('carta_id', id!),
+      veCostes ? supabase.from('v_carta_escandallo').select('*').eq('carta_id', id!) : supabase.rpc('fn_precios_carta', { p_carta: id! }),
+      supabase.from('carta_platos').select('id, orden, justificacion, plato_id, categoria_carta_id').eq('carta_id', id!),
       cargarPlatos(),
       supabase.from('propuestas').select('*').eq('carta_id', id!).order('creado_en', { ascending: false }).limit(1),
       veCostes ? supabase.from('tarifas').select('fecha_tarifa').eq('estado', 'aplicada').order('fecha_tarifa', { ascending: false }).limit(1) : Promise.resolve({ data: [], error: null }),
     ])
-    const ord = new Map((ok(orden) as { id: string; orden: number; justificacion: string | null }[]).map((o) => [o.id, o]))
-    const lineas = (ok(lin) as VLinea[]).sort((a, b) => (ord.get(a.carta_plato_id)?.orden ?? 0) - (ord.get(b.carta_plato_id)?.orden ?? 0))
+    const filasCarta = ok(orden) as { id: string; orden: number; justificacion: string | null; plato_id: string; categoria_carta_id: string | null }[]
+    const ord = new Map(filasCarta.map((o) => [o.id, o]))
+    const precios = new Map((ok(lin) as VLinea[]).map((x) => [x.carta_plato_id, x]))
+    // Para roles sin costes, fn_precios_carta solo trae precios: se completa con la fila de la carta
+    const unidas = filasCarta.map((f) => ({
+      coste_total: null, food_cost_real: null, margen_euros: null, metodo_pvp: null, pvp_final_sin_iva: null, pvp_carta_con_iva: null,
+      ...precios.get(f.id), carta_plato_id: f.id, plato_id: f.plato_id,
+      categoria_carta_id: precios.get(f.id)?.categoria_carta_id ?? f.categoria_carta_id,
+    })) as VLinea[]
+    const lineas = unidas.sort((a, b) => (ord.get(a.carta_plato_id)?.orden ?? 0) - (ord.get(b.carta_plato_id)?.orden ?? 0))
       .map((l) => ({ ...l, justificacion: ord.get(l.carta_plato_id)?.justificacion ?? null }))
     return {
       carta, lineas, platos: new Map(platos.map((p) => [p.id, p])),
@@ -49,7 +57,7 @@ export default function Propuesta() {
   const cats = vert.data!.categorias
   const costes = op.mostrar_costes && veCostes
   const grupos = [...cats, { id: '', nombre: 'Otros', orden: 99 }]
-    .map((c) => ({ c, filas: lineas.filter((l) => (l.categoria_carta_id ?? '') === c.id) }))
+    .map((c) => ({ c, filas: lineas.filter((l) => (l.categoria_carta_id ?? platos.get(l.plato_id)?.categoria_carta_id ?? '') === c.id) }))
     .filter((g) => g.filas.length)
   const hayTeoricos = lineas.some((l) => platos.get(l.plato_id)?.estado === 'teorica')
   const sinPrecio = lineas.filter((l) => l.pvp_carta_con_iva == null).length

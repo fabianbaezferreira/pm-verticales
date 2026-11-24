@@ -1,0 +1,11 @@
+-- 10 · PVP dinámico: food cost objetivo por plato en cada carta, redondeo por carta y precio siempre calculado en vivo.
+-- Aplicada en pm-verticales el 24/11/2026. Texto completo en supabase_migrations.schema_migrations (versión 10_pvp_dinamico_por_plato).
+-- Resumen:
+--  * carta_platos.food_cost_objetivo (override por plato y carta) y cartas.redondeo ('ninguno','00','50','90','95').
+--  * fn_redondear_carta(con_iva, modo): redondeo al alza al siguiente final permitido.
+--  * v_carta_escandallo recalcula el PVP según el método:
+--      multiplicador → coste × k (k: carta → cliente → plato → categoría → vertical → general)
+--      food_cost     → coste ÷ FC (FC: carta → plato → categoría)
+--      manual / comparables → precio fijado por el asesor
+--    y aplica IVA y redondeo de la carta. Expone food_cost_real, multiplicador_efectivo y margen.
+--  * fn_precios_carta(carta): SECURITY DEFINER intencionado; devuelve solo PVP (nunca coste) para roles sin acceso a costes.

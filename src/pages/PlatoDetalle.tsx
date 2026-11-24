@@ -6,6 +6,7 @@ import { useLoad, useVertical } from '../lib/hooks'
 import { EQUIPOS, ESTADOS_RECETA, ETIQUETA_ESTADO, eur, eur4, fecha, num, pct } from '../lib/format'
 import { Aviso, Cabecera, Campo, Cargando, Etiqueta, Fichas, NumInput } from '../components/ui'
 import Componentes from '../components/Componentes'
+import CalculadoraPvp from '../components/CalculadoraPvp'
 
 type Plato = {
   id: string; codigo: string; nombre: string; tipo_plato: string; categoria_carta_id: string | null; estilo_id: string | null
@@ -129,15 +130,6 @@ export default function PlatoDetalle() {
               <option value="">Sin evaluar</option><option value="true">Sí, aguanta el transporte</option><option value="false">No</option>
             </select>
           </Campo>
-          {veCostes && <>
-            <Campo etiqueta="Food cost objetivo (%)" ayuda="Vacío = el de la categoría">
-              <NumInput ancho={120} valor={x.food_cost_objetivo == null ? null : Math.round(x.food_cost_objetivo * 1000) / 10} deshabilitado={!edita}
-                onGuardar={(n) => upd({ food_cost_objetivo: n == null ? null : n / 100 })} />
-            </Campo>
-            <Campo etiqueta="Multiplicador propio" ayuda="Vacío = categoría → vertical → general">
-              <NumInput ancho={120} valor={x.multiplicador} deshabilitado={!edita} onGuardar={(n) => upd({ multiplicador: n })} />
-            </Campo>
-          </>}
           <Campo etiqueta="Equipos que necesita" ancho="completo">
             <Fichas opciones={EQUIPOS} valor={x.equipos} deshabilitado={!edita} onChange={(eq) => upd({ equipos: eq })} />
           </Campo>
@@ -158,6 +150,16 @@ export default function PlatoDetalle() {
           </Campo>
         </div>
       </div>
+
+      {veCostes && e && (
+        <div className="tarjeta">
+          <h2>Precio de venta</h2>
+          <CalculadoraPvp coste={e.componentes_sin_precio ? null : e.coste_total} iva={e.iva}
+            multiplicador={x.multiplicador} foodCost={x.food_cost_objetivo}
+            multiplicadorEfectivo={e.multiplicador} origenMultiplicador={e.multiplicador_origen} foodCostEfectivo={e.food_cost_objetivo}
+            editable={edita} onGuardar={(c) => upd(c)} />
+        </div>
+      )}
 
       <div className="tarjeta">
         <h2>Composición por ración</h2>

@@ -20,8 +20,14 @@ Todo el cálculo de costes vive en la base de datos (funciones y vistas), así q
 | Propuesta | Documento imprimible (PDF desde el navegador) para cliente o interno, con o sin escandallos. |
 | Configuración | Categorías (food cost objetivo, multiplicador), reglas del vertical, plantillas de plato, estilos, ajustes generales. |
 
-Multiplicador, por prioridad: plato en la carta → cliente → plato → categoría → vertical → general (2,5).
-PVP en carta = PVP sin IVA × (1 + IVA hostelería 10 %).
+El PVP es dinámico: se recalcula solo cuando cambian coste, tarifa, multiplicador, food cost objetivo o redondeo.
+Cada plato en cada carta elige método:
+
+- **Multiplicador**: coste × k. k se escribe por plato o por plato en la carta (como en Workspace); si no, hereda cliente → categoría → vertical → general (2,5 solo como valor de partida).
+- **Food cost objetivo**: coste ÷ FC. FC por plato en la carta → plato → categoría.
+- **Manual / comparables**: precio de carta con IVA fijado por el asesor.
+
+PVP en carta = PVP sin IVA × (1 + IVA hostelería 10 %), con el redondeo de la carta (,00 / ,50 / ,90 / ,95). La ficha del plato incluye una calculadora enlazada (k ↔ FC ↔ PVP) y un simulador de PVP deseado.
 
 ## Puesta en marcha (Windows)
 

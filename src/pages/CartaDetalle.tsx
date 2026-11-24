@@ -5,14 +5,14 @@ import { useAuth } from '../lib/auth'
 import { useLoad, useVertical } from '../lib/hooks'
 import { cargarCatalogos } from '../lib/catalogo'
 import { calcularIndicadores } from '../lib/indicadores'
-import { eur, MODOS_REDONDEO, num, pct, redondearCarta, type ModoRedondeo } from '../lib/format'
+import { eur, MODOS_REDONDEO, num, pct } from '../lib/format'
 import { Aviso, Buscador, Cabecera, Cargando, EstadoReceta, Etiqueta, NumInput } from '../components/ui'
 import { cargarPlatos, type PlatoFila } from './Platos'
 
-type Carta = { id: string; nombre: string; version: number; estado: string; cliente_id: string; clientes: Cliente }
+type Carta = { id: string; nombre: string; version: number; estado: string; cliente_id: string; redondeo: string; clientes: Cliente }
 type Cliente = { id: string; nombre: string; zona: string | null; equipos: string[]; canales: string[]; restricciones: string[]; ticket_medio: number | null }
-type Linea = { id: string; plato_id: string; categoria_carta_id: string | null; pvp_sin_iva: number | null; metodo_pvp: string | null; justificacion: string | null; orden: number; multiplicador: number | null }
-type VLinea = { carta_plato_id: string; coste_total: number | null; componentes_sin_precio: number; multiplicador: number; multiplicador_origen: string; pvp_multiplicador: number | null; pvp_final_sin_iva: number | null; pvp_carta_con_iva: number | null; food_cost_real: number | null; margen_euros: number | null }
+type Linea = { id: string; plato_id: string; categoria_carta_id: string | null; pvp_sin_iva: number | null; metodo_pvp: string | null; justificacion: string | null; orden: number; multiplicador: number | null; food_cost_objetivo: number | null }
+type VLinea = { carta_plato_id: string; coste_total: number | null; componentes_sin_precio: number; multiplicador: number; multiplicador_origen: string; pvp_multiplicador: number | null; food_cost_objetivo: number | null; food_cost_origen: string | null; pvp_food_cost: number | null; multiplicador_efectivo: number | null; metodo_pvp: string; pvp_final_sin_iva: number | null; pvp_carta_con_iva: number | null; food_cost_real: number | null; margen_euros: number | null }
 type Comparable = { plato: string; establecimiento: string | null; pvp_con_iva: number; fecha: string }
 
 const METODOS = [['multiplicador', 'Multiplicador'], ['food_cost', 'Food cost objetivo'], ['comparables', 'Comparables de zona'], ['manual', 'Manual']] as const
@@ -35,18 +35,17 @@ export default function CartaDetalle() {
   const vert = useVertical()
   const [error, setError] = useState<string | null>(null)
   const [verIncompatibles, setVerIncompatibles] = useState(false)
-  const [modoRedondeo, setModoRedondeo] = useState<ModoRedondeo>('90')
   const [aviso, setAviso] = useState<string | null>(null)
 
   const carta = useLoad(async () => ok(await supabase.from('cartas').select('*, clientes(*)').eq('id', id!).single()) as unknown as Carta, [id])
   const lineas = useLoad(async () => {
     const [l, v] = await Promise.all([
       supabase.from('carta_platos').select('*').eq('carta_id', id!).order('orden'),
-      supabase.from('v_carta_escandallo').select('*').eq('carta_id', id!),
+      veCostes ? supabase.from('v_carta_escandallo').select('*').eq('carta_id', id!) : supabase.rpc('fn_precios_carta', { p_carta: id! }),
     ])
     const vm = new Map((ok(v) as VLinea[]).map((x) => [x.carta_plato_id, x]))
     return (ok(l) as Linea[]).map((x) => ({ ...x, v: vm.get(x.id) }))
-  }, [id])
+  }, [id, veCostes])
   const platos = useLoad(cargarPlatos, [])
   const revision = useLoad(async () => ok(await supabase.rpc('fn_revisar_carta', { p_carta: id! })) as { tipo: string; plato: string | null; aviso: string }[], [id])
   const zona = carta.data?.clientes.zona ?? null
@@ -94,25 +93,13 @@ export default function CartaDetalle() {
     recargar()
   }
 
+  /** Cambia el método. Manual y comparables parten del precio actual; el resto se recalcula en vivo. */
   function elegirMetodo(l: (typeof ls)[number], metodo: string) {
-    const p = pmap.get(l.plato_id)
-    if (metodo === 'multiplicador') return updLinea(l.id, { metodo_pvp: metodo, pvp_sin_iva: null })
-    if (metodo === 'food_cost') {
-      if (p?.pvp_food_cost == null) { setError(`«${p?.nombre}» no tiene food cost objetivo (ni propio ni de su categoría). Defínelo en Configuración o en el plato.`); return }
-      return updLinea(l.id, { metodo_pvp: metodo, pvp_sin_iva: p.pvp_food_cost })
+    if (metodo === 'food_cost' && l.v?.food_cost_objetivo == null) {
+      setError(`«${pmap.get(l.plato_id)?.nombre}» no tiene food cost objetivo: escríbelo en la columna «FC obj.» de esta fila.`)
     }
-    return updLinea(l.id, { metodo_pvp: metodo, pvp_sin_iva: l.v?.pvp_final_sin_iva ?? null })
-  }
-
-  async function redondearTodo() {
-    for (const l of ls) {
-      const base = l.v?.pvp_final_sin_iva
-      if (base == null) continue
-      const conIva = redondearCarta(base * (1 + ivaV), modoRedondeo)
-      await supabase.from('carta_platos').update({ pvp_sin_iva: Math.round((conIva / (1 + ivaV)) * 10000) / 10000, metodo_pvp: l.metodo_pvp ?? 'multiplicador' }).eq('id', l.id)
-    }
-    setAviso('Precios de carta redondeados. El PVP queda fijado; si cambias el multiplicador, vuelve a elegir el método.')
-    recargar()
+    if (metodo === 'manual' || metodo === 'comparables') return updLinea(l.id, { metodo_pvp: metodo, pvp_sin_iva: l.v?.pvp_final_sin_iva ?? null })
+    return updLinea(l.id, { metodo_pvp: metodo, pvp_sin_iva: null })
   }
 
   async function congelar() {
@@ -127,7 +114,7 @@ export default function CartaDetalle() {
   }
 
   async function nuevaVersion() {
-    const nueva = ok(await supabase.from('cartas').insert({ cliente_id: k.cliente_id, nombre: k.nombre, version: k.version + 1 }).select('id').single()) as { id: string }
+    const nueva = ok(await supabase.from('cartas').insert({ cliente_id: k.cliente_id, nombre: k.nombre, version: k.version + 1, redondeo: k.redondeo }).select('id').single()) as { id: string }
     if (ls.length) ok(await supabase.from('carta_platos').insert(ls.map(({ id: _i, v: _v, ...l }) => ({ ...l, carta_id: nueva.id }))))
     await supabase.from('cartas').update({ estado: 'archivada' }).eq('id', id!)
     nav(`/cartas/${nueva.id}`)
@@ -178,10 +165,11 @@ export default function CartaDetalle() {
           <h2 style={{ margin: 0 }}>Platos y precio</h2>
           {veCostes && edita && (
             <div className="acciones">
-              <select value={modoRedondeo} onChange={(e) => setModoRedondeo(e.target.value as ModoRedondeo)}>
-                {MODOS_REDONDEO.map((m) => <option key={m.v} value={m.v}>{m.l}</option>)}
-              </select>
-              <button onClick={redondearTodo} disabled={!ls.length}>Redondear precios de carta</button>
+              <label className="peq">Redondeo de carta{' '}
+                <select value={k.redondeo} onChange={(e) => updCarta({ redondeo: e.target.value }).then(recargar)}>
+                  {MODOS_REDONDEO.map((m) => <option key={m.v} value={m.v}>{m.l}</option>)}
+                </select>
+              </label>
               <button onClick={congelar} disabled={!ls.length} title="Guarda coste, PVP y fecha de tarifa de cada plato">Guardar escandallos</button>
             </div>
           )}
@@ -190,23 +178,25 @@ export default function CartaDetalle() {
           <thead>
             <tr>
               <th>Plato</th>
-              {veCostes && <><th className="der">Coste</th><th className="der">× k</th><th className="der">PVP × k</th><th className="der">PVP FC obj.</th></>}
-              <th>Método</th><th className="der">PVP sin IVA</th><th className="der">Carta con IVA</th>
-              {veCostes && <><th className="der">FC real</th><th className="der">Margen</th></>}
+              {veCostes && <><th className="der">Coste</th><th className="der">Multiplicador</th><th className="der">FC obj. (%)</th><th className="der">PVP × k</th><th className="der">PVP por FC</th></>}
+              <th>Método</th><th className="der">Carta con IVA</th><th className="der">PVP sin IVA</th>
+              {veCostes && <><th className="der">FC real</th><th className="der">k real</th><th className="der">Margen</th></>}
               <th>Justificación</th>{edita && <th></th>}
             </tr>
           </thead>
           <tbody>
-            {ls.length === 0 && <tr><td colSpan={12} className="tenue">Carta vacía. Añade platos desde la biblioteca.</td></tr>}
+            {ls.length === 0 && <tr><td colSpan={14} className="tenue">Carta vacía. Añade platos desde la biblioteca.</td></tr>}
             {grupos.map((g) => (
               <Fragment key={g.c.id || 'sin'}>
-                <tr className="grupo"><td colSpan={12}>{g.c.nombre} <span className="tenue peq">({g.filas.length})</span></td></tr>
+                <tr className="grupo"><td colSpan={14}>{g.c.nombre} <span className="tenue peq">({g.filas.length})</span></td></tr>
                 {g.filas.map((l) => {
                   const p = pmap.get(l.plato_id)
                   const x = l.v
-                  const fcObj = p?.food_cost_objetivo ?? null
-                  const pasa = fcObj != null && x?.food_cost_real != null && x.food_cost_real > fcObj
+                  const fcObj = x?.food_cost_objetivo ?? null
+                  const pasa = fcObj != null && x?.food_cost_real != null && x.food_cost_real > fcObj + 0.0005
                   const avisos = avisosPorPlato.get(p?.nombre ?? '') ?? []
+                  const metodo = x?.metodo_pvp ?? l.metodo_pvp ?? 'multiplicador'
+                  const fijo = metodo === 'manual' || metodo === 'comparables'
                   return (
                     <tr key={l.id}>
                       <td>
@@ -216,28 +206,33 @@ export default function CartaDetalle() {
                       </td>
                       {veCostes && <>
                         <td className="der">{x?.componentes_sin_precio ? <Etiqueta tono="alerta">sin precio</Etiqueta> : eur(x?.coste_total)}</td>
-                        <td className="der">
-                          {edita && l.metodo_pvp === 'multiplicador' && l.pvp_sin_iva == null
-                            ? <NumInput ancho={60} valor={l.multiplicador} placeholder={num(x?.multiplicador)} onGuardar={(n) => updLinea(l.id, { multiplicador: n })} />
-                            : num(x?.multiplicador)}
-                          <div className="tenue peq">{x?.multiplicador_origen}</div>
+                        <td className={`der ${metodo === 'multiplicador' ? '' : 'tenue'}`}>
+                          <NumInput ancho={60} valor={l.multiplicador} placeholder={num(x?.multiplicador)} deshabilitado={!edita} onGuardar={(n) => updLinea(l.id, { multiplicador: n })} />
+                          <div className="tenue peq">{l.multiplicador == null ? x?.multiplicador_origen : 'esta carta'}</div>
+                        </td>
+                        <td className={`der ${metodo === 'food_cost' ? '' : 'tenue'}`}>
+                          <NumInput ancho={60} valor={l.food_cost_objetivo == null ? null : Math.round(l.food_cost_objetivo * 1000) / 10}
+                            placeholder={fcObj == null ? '—' : String(Math.round(fcObj * 1000) / 10).replace('.', ',')} deshabilitado={!edita}
+                            onGuardar={(n) => updLinea(l.id, { food_cost_objetivo: n == null ? null : n / 100 })} />
+                          <div className="tenue peq">{l.food_cost_objetivo == null ? (x?.food_cost_origen ?? 'sin definir') : 'esta carta'}</div>
                         </td>
                         <td className="der">{eur(x?.pvp_multiplicador)}</td>
-                        <td className="der">{eur(p?.pvp_food_cost)}</td>
+                        <td className="der">{eur(x?.pvp_food_cost)}</td>
                       </>}
                       <td>
-                        <select value={l.metodo_pvp ?? 'multiplicador'} disabled={!edita} onChange={(e) => elegirMetodo(l, e.target.value)}>
+                        <select value={metodo} disabled={!edita} onChange={(e) => elegirMetodo(l, e.target.value)}>
                           {METODOS.map(([m, t]) => <option key={m} value={m}>{t}</option>)}
                         </select>
                       </td>
-                      <td className="der">{eur(x?.pvp_final_sin_iva)}</td>
                       <td className="der">
-                        {edita && (l.metodo_pvp === 'manual' || l.metodo_pvp === 'comparables')
+                        {edita && fijo
                           ? <NumInput ancho={80} valor={x?.pvp_carta_con_iva ?? null} onGuardar={(n) => n != null && updLinea(l.id, { pvp_sin_iva: Math.round((n / (1 + ivaV)) * 10000) / 10000 })} />
                           : <b>{eur(x?.pvp_carta_con_iva)}</b>}
                       </td>
+                      <td className="der">{eur(x?.pvp_final_sin_iva)}</td>
                       {veCostes && <>
-                        <td className="der">{pasa ? <Etiqueta tono="error">{pct(x?.food_cost_real)}</Etiqueta> : pct(x?.food_cost_real)}{fcObj != null && <div className="tenue peq">obj. {pct(fcObj, 0)}</div>}</td>
+                        <td className="der">{pasa ? <Etiqueta tono="error">{pct(x?.food_cost_real)}</Etiqueta> : pct(x?.food_cost_real)}</td>
+                        <td className="der">{num(x?.multiplicador_efectivo)}</td>
                         <td className="der">{eur(x?.margen_euros)}</td>
                       </>}
                       <td><input defaultValue={l.justificacion ?? ''} disabled={!edita} placeholder="Por qué este precio" onBlur={(e) => e.target.value !== (l.justificacion ?? '') && updLinea(l.id, { justificacion: e.target.value || null })} /></td>
@@ -249,6 +244,7 @@ export default function CartaDetalle() {
             ))}
           </tbody>
         </table>
+        {veCostes && <p className="tenue peq">El precio de carta se recalcula solo cuando cambia el coste, la tarifa, el multiplicador, el food cost objetivo o el redondeo. Multiplicador y FC objetivo se heredan (carta → plato → categoría → general) salvo que los escribas en la fila. «Manual» y «Comparables» fijan el precio con IVA.</p>}
         {edita && (
           <div className="fila-anadir">
             <Buscador opciones={opciones} onElegir={(o) => anadir(o.id)} placeholder="Añadir plato de la biblioteca…" />
