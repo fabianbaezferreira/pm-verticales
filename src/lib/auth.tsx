@@ -31,12 +31,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => data.subscription.unsubscribe()
   }, [])
 
+  // Depende del id del usuario y no del objeto de sesión: Supabase renueva la sesión al volver a la ventana
+  // (p. ej. tras abrir el selector de archivos) y eso no debe recargar la app ni borrar lo que hay en pantalla.
+  const userId = session?.user.id ?? null
   useEffect(() => {
     let vivo = true
     async function cargar() {
-      if (!session) { setRol(null); setNombre(null); setCargando(false); return }
+      if (!userId) { setRol(null); setNombre(null); setCargando(false); return }
       setCargando(true)
-      const { data } = await supabase.from('perfiles').select('rol, nombre').eq('user_id', session.user.id).maybeSingle()
+      const { data } = await supabase.from('perfiles').select('rol, nombre').eq('user_id', userId).maybeSingle()
       if (!vivo) return
       setRol((data?.rol as Rol) ?? null)
       setNombre(data?.nombre ?? null)
@@ -44,7 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     cargar()
     return () => { vivo = false }
-  }, [session])
+  }, [userId])
 
   const value: Ctx = {
     session, rol, nombre, cargando,

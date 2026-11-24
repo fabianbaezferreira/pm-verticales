@@ -30,6 +30,9 @@ export function FuentesTab({ fuentes, cargando, error, areas, areaCodigo, reload
   const [nueva, setNueva] = useState({ nombre: '', url: '' })
   const [err, setErr] = useState<string | null>(null)
   const docs = useLoad(async () => ok(await supabase.from('enc_documentos').select('id, codigo, fuente_id, titulo, url_original, formato, estado, fecha_publicacion, fecha_consulta, original_conservado').order('codigo')) as Doc[], [])
+  // Solo admin y asesor pueden leer el contenido en bruto; el resto recibe una lista vacía (RLS).
+  const cont = useLoad(async () => ok(await supabase.from('enc_documento_contenido').select('documento_id, bytes')) as { documento_id: string; bytes: number | null }[], [])
+  const conTexto = new Map((cont.data ?? []).map((c) => [c.documento_id, c.bytes ?? 0]))
 
   const mercados = Array.from(new Set(fuentes.map((f) => f.mercado).filter(Boolean) as string[])).sort()
   const filas = fuentes.filter((f) =>
@@ -74,6 +77,7 @@ export function FuentesTab({ fuentes, cargando, error, areas, areaCodigo, reload
           {err && <Aviso tipo="error">{err}</Aviso>}
         </div>
       )}
+      {edita && <SubirTextos fuentes={fuentes} docs={docs.data ?? []} conTexto={conTexto} onHecho={() => { docs.reload(); cont.reload() }} />}
       {cargando && fuentes.length === 0 ? <Cargando /> : error ? <Aviso tipo="error">{error}</Aviso> : (
         <table className="tabla">
           <thead><tr><th>Código</th><th>Fuente</th><th>Mercado</th><th>Tipo</th><th>Áreas</th><th>Estado</th><th className="der">Docs</th><th></th></tr></thead>
@@ -92,7 +96,7 @@ export function FuentesTab({ fuentes, cargando, error, areas, areaCodigo, reload
                 </tr>
                 {abierta === f.id && (
                   <tr><td colSpan={8} style={{ background: '#faf9f7' }}>
-                    <FuenteDetalle fuente={f} docs={(docs.data ?? []).filter((d) => d.fuente_id === f.id)} areas={areas} onCambio={() => { reload(); docs.reload() }} />
+                    <FuenteDetalle fuente={f} docs={(docs.data ?? []).filter((d) => d.fuente_id === f.id)} conTexto={conTexto} areas={areas} onCambio={() => { reload(); docs.reload(); cont.reload() }} />
                   </td></tr>
                 )}
               </Fragment>
@@ -104,9 +108,90 @@ export function FuentesTab({ fuentes, cargando, error, areas, areaCodigo, reload
   )
 }
 
-function FuenteDetalle({ fuente: f, docs, areas, onCambio }: { fuente: Fuente; docs: Doc[]; areas: Area[]; onCambio: () => void }) {
+type FilaTxt = { nombre: string; codigo: string | null; doc: Doc | null; texto: string; bytes: number; motivo: string | null }
+
+/** Sube el texto íntegro de un lote (ficheros F001.txt, F002.txt…) al contenido privado de su documento. */
+function SubirTextos({ fuentes, docs, conTexto, onHecho }: { fuentes: Fuente[]; docs: Doc[]; conTexto: Map<string, number>; onHecho: () => void }) {
+  const [abierto, setAbierto] = useState(false)
+  const [filas, setFilas] = useState<FilaTxt[]>([])
+  const [msg, setMsg] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [subiendo, setSubiendo] = useState(false)
+
+  async function leer(files: FileList | null) {
+    setMsg(null); setError(null)
+    if (!files?.length) return setFilas([])
+    const r: FilaTxt[] = []
+    for (const f of Array.from(files)) {
+      const texto = await f.text()
+      const codigo = f.name.match(/^(F\d{3})/i)?.[1].toUpperCase() ?? null
+      const fuente = codigo ? fuentes.find((x) => x.codigo === codigo) : undefined
+      const candidatos = fuente ? docs.filter((d) => d.fuente_id === fuente.id && !['bloqueada', 'descartada_con_motivo'].includes(d.estado)) : []
+      const doc = candidatos.find((d) => !conTexto.has(d.id)) ?? candidatos[0] ?? null
+      const motivo = !codigo ? 'El nombre no empieza por un código de fuente (F001…)' : !fuente ? 'No existe esa fuente' : !doc ? 'No hay un documento válido registrado para esa fuente' : !texto.trim() ? 'Archivo vacío' : null
+      r.push({ nombre: f.name, codigo, doc, texto, bytes: new TextEncoder().encode(texto).length, motivo })
+    }
+    setFilas(r.sort((a, b) => a.nombre.localeCompare(b.nombre)))
+  }
+
+  async function subir() {
+    setSubiendo(true); setError(null); setMsg(null)
+    let n = 0
+    for (const f of filas.filter((x) => !x.motivo && x.doc)) {
+      const a = await supabase.from('enc_documento_contenido').upsert({ documento_id: f.doc!.id, texto_completo: f.texto, bytes: f.bytes }, { onConflict: 'documento_id' })
+      if (a.error) { setError(`${f.nombre}: ${a.error.message}`); break }
+      if (f.doc!.estado === 'capturada') {
+        const b = await supabase.from('enc_documentos').update({ estado: 'texto_extraido' }).eq('id', f.doc!.id)
+        if (b.error) { setError(`${f.nombre}: ${b.error.message}`); break }
+      }
+      n++
+    }
+    setSubiendo(false)
+    if (n) { setMsg(`Subidos ${n} textos al contenido privado.`); setFilas([]); onHecho() }
+  }
+
+  if (!abierto) return <p><button onClick={() => setAbierto(true)}>Subir texto de un lote</button></p>
+  const validas = filas.filter((f) => !f.motivo).length
+  return (
+    <div className="tarjeta">
+      <h2>Subir texto de un lote</h2>
+      <p className="tenue peq">Elige los ficheros <code>texto_completo/Fnnn.txt</code> del lote. Cada uno se asocia al documento de su fuente y se guarda en el contenido en bruto, que solo ven administradores y asesores. Si el documento ya tenía texto, se reemplaza.</p>
+      <input type="file" multiple accept=".txt,text/plain" onChange={(e) => leer(e.target.files)} />
+      {error && <Aviso tipo="error">{error}</Aviso>}
+      {msg && <Aviso tipo="ok">{msg}</Aviso>}
+      {filas.length > 0 && (
+        <>
+          <table className="tabla" style={{ marginTop: 10 }}>
+            <thead><tr><th>Fichero</th><th>Documento</th><th className="der">Tamaño</th><th>Acción</th></tr></thead>
+            <tbody>{filas.map((f) => (
+              <tr key={f.nombre}>
+                <td className="peq">{f.nombre}</td><td className="peq">{f.doc ? `${f.doc.codigo} · ${f.doc.titulo ?? ''}` : '—'}</td>
+                <td className="der peq">{(f.bytes / 1024).toFixed(1)} KB</td>
+                <td className="peq">{f.motivo ? <span className="tenue">Se omite: {f.motivo}</span> : f.doc && conTexto.has(f.doc.id) ? 'Reemplaza el texto existente' : 'Nuevo'}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+          <div className="fila-anadir">
+            <button className="btn-primario" disabled={!validas || subiendo} onClick={subir}>{subiendo ? 'Subiendo…' : `Subir ${validas} textos`}</button>
+            <button onClick={() => { setFilas([]); setAbierto(false) }}>Cancelar</button>
+          </div>
+        </>
+      )}
+      {filas.length === 0 && <button className="btn-mini" style={{ marginTop: 8 }} onClick={() => setAbierto(false)}>Cerrar</button>}
+    </div>
+  )
+}
+
+function FuenteDetalle({ fuente: f, docs, conTexto, areas, onCambio }: { fuente: Fuente; docs: Doc[]; conTexto: Map<string, number>; areas: Area[]; onCambio: () => void }) {
   const { edita } = useAuth()
   const [error, setError] = useState<string | null>(null)
+  const [ver, setVer] = useState<{ id: string; texto: string } | null>(null)
+  async function verTexto(id: string) {
+    if (ver?.id === id) return setVer(null)
+    const r = await supabase.from('enc_documento_contenido').select('texto_completo').eq('documento_id', id).maybeSingle()
+    if (r.error) return setError(r.error.message)
+    setVer({ id, texto: r.data?.texto_completo ?? '' })
+  }
   const [nd, setNd] = useState({ titulo: '', url: '', formato: 'HTML' })
 
   async function upd(c: Partial<Fuente>) {
@@ -157,16 +242,20 @@ function FuenteDetalle({ fuente: f, docs, areas, onCambio }: { fuente: Fuente; d
       <h3 style={{ marginTop: 14 }}>Documentos de esta fuente</h3>
       {docs.length === 0 ? <p className="tenue peq">Todavía no hay documentos registrados. Se añadirán en la fase de captura.</p> : (
         <table className="tabla">
-          <thead><tr><th>Código</th><th>Documento</th><th>Formato</th><th>Original</th><th>Consulta</th><th>Estado</th></tr></thead>
+          <thead><tr><th>Código</th><th>Documento</th><th>Formato</th><th>Original</th><th>Texto</th><th>Consulta</th><th>Estado</th></tr></thead>
           <tbody>{docs.map((d) => (
-            <tr key={d.id}>
-              <td className="peq">{d.codigo}</td>
-              <td>{d.titulo ?? <span className="tenue">Sin título</span>} {d.url_original && <a href={d.url_original} target="_blank" rel="noopener noreferrer">↗</a>}</td>
-              <td className="peq">{d.formato}</td>
-              <td className="peq">{d.original_conservado ? 'Conservado' : 'No conservado'}</td>
-              <td className="peq">{fecha(d.fecha_consulta)}</td>
-              <td><SelectEstado valor={d.estado} deshabilitado={!edita} onChange={(v) => { const c = estadoConMotivo(v); if (c) updDoc(d.id, c) }} /></td>
-            </tr>
+            <Fragment key={d.id}>
+              <tr>
+                <td className="peq">{d.codigo}</td>
+                <td>{d.titulo ?? <span className="tenue">Sin título</span>} {d.url_original && <a href={d.url_original} target="_blank" rel="noopener noreferrer">↗</a>}</td>
+                <td className="peq">{d.formato}</td>
+                <td className="peq">{d.original_conservado ? 'Conservado' : 'No conservado'}</td>
+                <td className="peq">{conTexto.has(d.id) ? <>{((conTexto.get(d.id) ?? 0) / 1024).toFixed(1)} KB <button className="btn-mini" onClick={() => verTexto(d.id)}>{ver?.id === d.id ? 'Ocultar' : 'Ver'}</button></> : <span className="tenue">Sin subir</span>}</td>
+                <td className="peq">{fecha(d.fecha_consulta)}</td>
+                <td><SelectEstado valor={d.estado} deshabilitado={!edita} onChange={(v) => { const c = estadoConMotivo(v); if (c) updDoc(d.id, c) }} /></td>
+              </tr>
+              {ver?.id === d.id && <tr><td colSpan={7}><pre style={{ maxHeight: 320, overflow: 'auto', whiteSpace: 'pre-wrap', fontSize: 12, margin: 0 }}>{ver.texto.slice(0, 30000)}{ver.texto.length > 30000 ? `\n\n… (${ver.texto.length - 30000} caracteres más)` : ''}</pre></td></tr>}
+            </Fragment>
           ))}</tbody>
         </table>
       )}
